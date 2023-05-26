@@ -1,2 +1,5 @@
 # Ignore all files in the 'SOCKET_DATA' subfolder.
 /SOCKET_DATA/*
+
+# Ignore all files in any 'lightning_logs' folders
+/*/lightning_logs/*
