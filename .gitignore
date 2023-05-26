@@ -1,2 +1,2 @@
-# Ignore all files in the 'data' subfolder.
-/data/
+# Ignore all files in the 'SOCKET_DATA' subfolder.
+/SOCKET_DATA/
