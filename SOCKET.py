@@ -29,7 +29,7 @@ _HOMEPAGE = "TBD"
 _LICENSE = ""
 
 #set up url or the file dir here
-URL = "SOCKET/"
+URL = "SOCKET_DATA/"
 
 TASK_DICT = {
     'humor_sarcasm': [
@@ -320,7 +320,7 @@ class SOCKET(datasets.GeneratorBasedBuilder):
         elif self.config.type == "tweet_emotion":
             names = ["anger", "joy", "optimism", "sadness"]
         elif self.config.type == "emotion-span": 
-            names = ['emotion', 'cause']
+            names = ['cause']
             label_type = datasets.Sequence(feature={n:datasets.Value(dtype='string', id=None) for n in names})
             print(label_type)
         elif self.config.type == "propaganda-span": 
