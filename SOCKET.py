@@ -18,7 +18,16 @@
 import datasets
 
 
-_CITATION = "TBD"
+_CITATION = """
+@misc{choi2023llms,
+      title={Do LLMs Understand Social Knowledge? Evaluating the Sociability of Large Language Models with SocKET Benchmark}, 
+      author={Minje Choi and Jiaxin Pei and Sagar Kumar and Chang Shu and David Jurgens},
+      year={2023},
+      eprint={2305.14938},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL}
+}
+"""
 
 _DESCRIPTION = """\
 A unified evaluation benchmark dataset for evaludating socialbility of NLP models.
@@ -30,6 +39,7 @@ _LICENSE = ""
 
 #set up url or the file dir here
 URL = "SOCKET_DATA/"
+URL = "https://huggingface.co/datasets/Blablablab/SOCKET/tree/main/SOCKET_DATA/"
 
 TASK_DICT = {
     'humor_sarcasm': [
@@ -118,7 +128,9 @@ for task in TASK_NAMES:
     _URLs[task] = {}
     for s in ['train', 'test', 'val']:
         for t in ['text', 'labels']:
-            _URLs[task][s + '_' + t] = '%s%s/%s_%s.txt'%(URL,task,s,t)
+            task_url = '%s%s/%s_%s.txt'%(URL,task,s,t)
+            task_url = task_url.replace('#','%23')
+            _URLs[task][s + '_' + t] = task_url
 
 class SOCKETConfig(datasets.BuilderConfig):
     def __init__(self, *args, type=None, sub_type=None, **kwargs):
