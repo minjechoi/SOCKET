@@ -7,11 +7,13 @@ import re
 import string
 import collections
 from getpass import getpass
-from getpass import getpass
 
 import torch
 from langchain.llms import OpenAI
-from transformers import pipeline
+from transformers import (
+    AutoConfig,
+    pipeline
+)
 from langchain.chat_models import ChatOpenAI
 from datasets import load_dataset
 from sklearn.metrics import precision_recall_fscore_support
@@ -48,11 +50,10 @@ parser.add_argument("--data_name_or_path", type=str, default='Blablablab/SOCKET'
 parser.add_argument("--model_cache_dir", type=str, default=None)
 parser.add_argument("--data_split", type=str, default='test')
 parser.add_argument("--batch_size", default=32, type=int)
-parser.add_argument("--max_length", default=512, type=int)
 parser.add_argument("--max_new_tokens", default=100, type=int)
 parser.add_argument("--task", type=str, default='ALL')
 parser.add_argument("--result_path", default='results/')
-parser.add_argument("--use_cuda", type=bool, default=True)
+parser.add_argument("--use_cuda", action="store_true")
 parser.add_argument("--use_sockette", action="store_true")
 parser.add_argument("--unit_test", action="store_true")
 parser.add_argument("--debug", action="store_true")
@@ -113,55 +114,10 @@ def data_iterator(data, batch_size = 64):
         x = data[idx *batch_size:(idx+1) * batch_size]
         yield x
 
-def truncate(sen, max_length=512):
-    return ' '.join(sen.split()[:max_length])
-
-# function for selecting LLM based on model type
-def get_llm(model_type, model_id, use_cuda):
-    if use_cuda:
-        # device = torch.device('cuda:0')
-        device = 0
-        dtype = torch.float16
-    else:
-        device = torch.device('cpu')
-        dtype = torch.float32
-    
-    if model_type == 'huggingface':
-        if re.search('t5-|alpaca|bart-', model_id):
-            pipe_type = "text2text-generation"
-        else:
-            pipe_type = "text-generation"    
-        print(pipe_type)
-        
-        if 'llama' in model_id:
-            from transformers import LlamaTokenizer
-            tokenizer = LlamaTokenizer.from_pretrained(model_id)
-        else:
-            tokenizer = None
-        
-        hf_pipe = pipeline(pipe_type, model=model_id, tokenizer=tokenizer,device=device, torch_dtype=dtype)
-        llm = hf_pipe#
-        print(llm)
-
-    elif model_type.startswith('openai'):
-        API_KEY = os.getenv("OPENAI_API_KEY")
-        if API_KEY is None:
-            API_KEY = getpass("Paste your OpenAI key from: https://platform.openai.com/account/api-keys\n")
-            assert API_KEY.startswith("sk-"), "This doesn't look like a valid OpenAI API key"
-            
-            print("OpenAI API key configured")
-
-        if model_type == 'openai':
-            llm = OpenAI(model_name=model_id, temperature=0, openai_api_key=API_KEY)
-            
-        if model_type == 'openai_chat':
-            llm = ChatOpenAI(model_name=model_id, temperature=0, openai_api_key=API_KEY)
-    
-    else:
-        print("Unsupported Model: {}".format(model_type))
-
-    
-    return pipe_type, llm
+def truncate(sen, tokenizer, max_length=512):
+    en_sen = tokenizer.encode(sen)
+    sen = tokenizer.decode(sen[:max_length])
+    return sen
 
 args = parser.parse_args()
 print(args)
@@ -190,7 +146,52 @@ else:
 # fetch LLM
 use_cuda = args.use_cuda
 model_type, model_id = args.model_type, args.model_name_or_path
-pipe_type, target_llm = get_llm(model_type, model_id, use_cuda)
+
+if use_cuda:
+    device = 0
+    dtype = torch.float16
+else:
+    device = torch.device('cpu')
+    dtype = torch.float32
+
+if model_type == 'huggingface':
+    if re.search('t5-|alpaca|bart-', model_id):
+        pipe_type = "text2text-generation"
+    else:
+        pipe_type = "text-generation"
+    print(pipe_type)
+    
+    if 'llama' in model_id:
+        from transformers import LlamaTokenizer, LlamaConfig
+        tokenizer = LlamaTokenizer.from_pretrained(model_id)
+        config = LlamaConfig.from_pretrained(model_id)
+    else:
+        from transformers import AutoTokenizer, AutoConfig
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        config = AutoConfig.from_pretrained(model_id)
+    max_seq_len = config.n_positions
+    
+    hf_pipe = pipeline(pipe_type, model=model_id, tokenizer=tokenizer, device=device, torch_dtype=dtype)
+    llm = hf_pipe#
+    print(llm)
+    
+elif model_type.startswith('openai'):
+    API_KEY = os.getenv("OPENAI_API_KEY")
+    if API_KEY is None:
+        API_KEY = getpass("Paste your OpenAI key from: https://platform.openai.com/account/api-keys\n")
+        assert API_KEY.startswith("sk-"), "This doesn't look like a valid OpenAI API key"
+        
+        print("OpenAI API key configured")
+
+    if model_type == 'openai':
+        llm = OpenAI(model_name=model_id, temperature=0, openai_api_key=API_KEY)
+        
+    if model_type == 'openai_chat':
+        llm = ChatOpenAI(model_name=model_id, temperature=0, openai_api_key=API_KEY)
+
+else:
+    print("Unsupported Model: {}".format(model_type))
+
 data_name_or_path, data_split = args.data_name_or_path, args.data_split
 
 # set result directory
@@ -213,9 +214,9 @@ for i,task_info in tqdm(tasks_df.iterrows()):
     dataset = load_dataset(args.data_name_or_path, task, data_split)[data_split]
     
     if task_type == 'PAIR' or task_type == 'CLS':
-        ppt_template = "%s \nOptions:\n%s\n Please only answer with the options. "%(task_info['question'], '\n'.join(eval(task_info['options'])))
+        ppt_template = "%s\nOptions:\n%s\nPlease only answer with the options. "%(task_info['question'], '\n'.join(eval(task_info['options'])))
     else:
-        ppt_template = "%s \n"%(task_info['question'])
+        ppt_template = "%s\n"%(task_info['question'])
     
     # specify instructions for alpaca or llama-2 models
     if re.search('alpaca|llama2', model_id):
@@ -226,12 +227,30 @@ for i,task_info in tqdm(tasks_df.iterrows()):
         ppt_template = "Question: %sAnswer:"%ppt_template
     print(ppt_template)
     
+    ln_template = len(tokenizer.tokenize(ppt_template))
+    valid_ln = max_seq_len - ln_template - args.max_new_tokens    
+    
+    prompts = []
     if task_type == 'PAIR':
         pairs = [it.split('[SEP]') for it in dataset['text']]
-        dataset = dataset.add_column('prompt', [ppt_template.replace("{text_a}", it[0]).replace("{text_b}", it[1]) for it in pairs])
+        for text_a, text_b in pairs:
+            en_text_a, en_text_b = tokenizer.encode(text_a), tokenizer.encode(text_b)
+            ln_a, ln_b = len(en_text_a), len(en_text_b)
+            if (ln_a+ln_b)> valid_ln:
+                if ln_a>ln_b:
+                    en_text_a = en_text_a[:ln_a+ln_b-valid_ln]
+                else:
+                    en_text_b = en_text_b[:ln_a+ln_b-valid_ln]
+            text_a, text_b = tokenizer.decode(en_text_a), tokenizer.decode(en_text_b)
+            prompts.append(ppt_template.replace("{text_a}", text_a).replace("{text_b}", text_b))            
+        
+        # dataset = dataset.add_column('prompt', [ppt_template.replace("{text_a}", it[0]).replace("{text_b}", it[1]) for it in pairs])
     else:
-        dataset = dataset.add_column('prompt', [ppt_template.replace("{text}", truncate(it, args.max_length)) for it in dataset['text']])
-    
+        for text in dataset['text']:
+            prompts.append(ppt_template.replace("{text}", truncate(text, valid_ln)))
+        # dataset = dataset.add_column('prompt', [ppt_template.replace("{text}", truncate(it, args.max_length)) for it in dataset['text']])
+    dataset = dataset.add_column('prompt', prompts)
+        
     print(dataset['prompt'][:1])
     
     if task_type == 'PAIR' or task_type == 'CLS':
@@ -252,9 +271,9 @@ for i,task_info in tqdm(tasks_df.iterrows()):
     outputs = []
     for batch in tqdm(data_iter, total=int(len(dataset['prompt'])/batch_size)):
         if pipe_type=='text-generation':
-            output = target_llm(batch, max_new_tokens = args.max_new_tokens, return_full_text=False, clean_up_tokenization_spaces=True)
+            output = llm(batch, max_new_tokens = args.max_new_tokens, return_full_text=False, clean_up_tokenization_spaces=True)
         elif pipe_type=='text2text-generation':
-            output = target_llm(batch, max_new_tokens = args.max_new_tokens)
+            output = llm(batch, max_new_tokens = args.max_new_tokens)
         elif pipe_type=='gpt':
             sys.exit(0) # unimplemented
         
