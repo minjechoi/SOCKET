@@ -50,6 +50,7 @@ parser.add_argument("--data_name_or_path", type=str, default='Blablablab/SOCKET'
 parser.add_argument("--model_cache_dir", type=str, default=None)
 parser.add_argument("--data_split", type=str, default='test')
 parser.add_argument("--batch_size", default=32, type=int)
+parser.add_argument("--max_seq_len", default=2048, type=int)
 parser.add_argument("--max_new_tokens", default=100, type=int)
 parser.add_argument("--task", type=str, default='ALL')
 parser.add_argument("--result_path", default='results/')
@@ -114,9 +115,21 @@ def data_iterator(data, batch_size = 64):
         x = data[idx *batch_size:(idx+1) * batch_size]
         yield x
 
+# def get_max_seq_len(model_id):
+#     model_id = model_id.lower()
+#     if 'opt-' in model_id:
+#         return 2048
+#     elif 'bloom' in model_id:
+#         return 2048
+#     elif 'gpt' in model_id:
+#         return 2048
+    
+#     else:
+#         return 2048
+
 def truncate(sen, tokenizer, max_length=512):
     en_sen = tokenizer.encode(sen)
-    sen = tokenizer.decode(sen[:max_length])
+    sen = tokenizer.decode(en_sen[:max_length])
     return sen
 
 args = parser.parse_args()
@@ -146,6 +159,7 @@ else:
 # fetch LLM
 use_cuda = args.use_cuda
 model_type, model_id = args.model_type, args.model_name_or_path
+max_seq_len = args.max_seq_len
 
 if use_cuda:
     device = 0
@@ -169,12 +183,9 @@ if model_type == 'huggingface':
         from transformers import AutoTokenizer, AutoConfig
         tokenizer = AutoTokenizer.from_pretrained(model_id)
         config = AutoConfig.from_pretrained(model_id)
-    max_seq_len = config.n_positions
-    
     hf_pipe = pipeline(pipe_type, model=model_id, tokenizer=tokenizer, device=device, torch_dtype=dtype)
     llm = hf_pipe#
-    print(llm)
-    
+    print(llm)    
 elif model_type.startswith('openai'):
     API_KEY = os.getenv("OPENAI_API_KEY")
     if API_KEY is None:
@@ -188,7 +199,6 @@ elif model_type.startswith('openai'):
         
     if model_type == 'openai_chat':
         llm = ChatOpenAI(model_name=model_id, temperature=0, openai_api_key=API_KEY)
-
 else:
     print("Unsupported Model: {}".format(model_type))
 
@@ -247,7 +257,7 @@ for i,task_info in tqdm(tasks_df.iterrows()):
         # dataset = dataset.add_column('prompt', [ppt_template.replace("{text_a}", it[0]).replace("{text_b}", it[1]) for it in pairs])
     else:
         for text in dataset['text']:
-            prompts.append(ppt_template.replace("{text}", truncate(text, valid_ln)))
+            prompts.append(ppt_template.replace("{text}", truncate(text, tokenizer, valid_ln)))
         # dataset = dataset.add_column('prompt', [ppt_template.replace("{text}", truncate(it, args.max_length)) for it in dataset['text']])
     dataset = dataset.add_column('prompt', prompts)
         
