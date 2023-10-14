@@ -1,0 +1,330 @@
+import os
+import sys
+import argparse
+import math
+import re
+import string
+import collections
+from getpass import getpass
+from getpass import getpass
+
+from langchain.llms import OpenAI
+from transformers import pipeline
+import wandb
+from langchain.chat_models import ChatOpenAI
+import torch
+from datasets import load_dataset
+from tqdm import tqdm
+
+from sklearn.metrics import precision_recall_fscore_support
+import pandas as pd
+
+from langchain.agents import load_tools
+from langchain.agents import initialize_agent
+from langchain.agents import AgentType
+from langchain.llms import OpenAI
+from langchain.llms import HuggingFacePipeline
+from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline
+from transformers.pipelines.pt_utils import KeyDataset
+#from wandb.integration.langchain import WandbTracer
+import wandb
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
+from langchain.chat_models import ChatOpenAI
+from langchain.evaluation.qa import QAEvalChain
+import torch
+from datasets import load_dataset
+from tqdm import tqdm
+import argparse
+import json
+from sklearn.metrics import precision_recall_fscore_support
+import pandas as pd
+import math
+import re
+from time import time,sleep
+import string
+import collections
+
+from langchain.chat_models import ChatOpenAI
+from langchain.prompts.chat import (
+    ChatPromptTemplate,
+    SystemMessagePromptTemplate,
+    AIMessagePromptTemplate,
+    HumanMessagePromptTemplate,
+)
+from langchain.schema import AIMessage, HumanMessage, SystemMessage
+
+print('PID: ',os.getpid())
+
+parser = argparse.ArgumentParser("")
+parser.add_argument("--model_type", type=str, default='huggingface')
+parser.add_argument("--model_name_or_path", type=str, default='google/flan-t5-small')
+parser.add_argument("--data_name_or_path", type=str, default='Blablablab/SOCKET')
+parser.add_argument("--model_cache_dir", type=str, default=None)
+parser.add_argument("--data_split", type=str, default='test')
+parser.add_argument("--batch_size", default=32, type=int)
+parser.add_argument("--max_length", default=512, type=int)
+parser.add_argument("--max_new_tokens", default=100, type=int)
+parser.add_argument("--task", type=str, default='ALL')
+parser.add_argument("--result_path", default='results/')
+parser.add_argument("--use_cuda", type=bool, default=True)
+parser.add_argument("--use_sockette", action="store_true")
+parser.add_argument("--unit_test", action="store_true")
+parser.add_argument("--debug", action="store_true")
+
+
+
+# functions for normalizing texts
+def normalize_answer(s):
+  """Lower text and remove punctuation, articles and extra whitespace."""
+  def remove_articles(text):
+    regex = re.compile(r'\b(a|an|the)\b', re.UNICODE)
+    return re.sub(regex, ' ', text)
+  def white_space_fix(text):
+    return ' '.join(text.split())
+  def remove_punc(text):
+    exclude = set(string.punctuation)
+    return ''.join(ch for ch in text if ch not in exclude)
+  def lower(text):
+    return text.lower()
+  return white_space_fix(remove_articles(remove_punc(lower(s))))
+
+def get_tokens(s):
+    if not s: return []
+    return normalize_answer(s).split()
+
+# functions for computing scores
+def compute_exact(a_gold, a_pred):
+    return int(normalize_answer(a_gold) == normalize_answer(a_pred))
+
+def compute_f1(a_gold, a_pred):
+    gold_toks = get_tokens(a_gold)
+    pred_toks = get_tokens(a_pred)
+    common = collections.Counter(gold_toks) & collections.Counter(pred_toks)
+    num_same = sum(common.values())
+    if len(gold_toks) == 0 or len(pred_toks) == 0:
+        # If either is no-answer, then F1 is 1 if they agree, 0 otherwise
+        res = int(gold_toks == pred_toks)
+        return res, res, res
+    if num_same == 0:
+        return 0,0,0
+    precision = 1.0 * num_same / len(pred_toks)
+    recall = 1.0 * num_same / len(gold_toks)
+    f1 = (2 * precision * recall) / (precision + recall)
+    return f1, precision, recall
+
+def get_mean(li):
+    return sum(li)/len(li)
+
+def get_all_f1(groundtruth, answer):
+    f1 = get_mean([compute_f1(g,a)[0] for a,g in zip(answer,groundtruth) ])
+    p = get_mean([compute_f1(g,a)[1] for a,g in zip(answer,groundtruth) ])
+    r = get_mean([compute_f1(g,a)[2] for a,g in zip(answer,groundtruth) ])
+    return p, r, f1
+
+def data_iterator(data, batch_size = 64):
+    n_batches = math.ceil(len(data) / batch_size)
+    for idx in range(n_batches):
+        x = data[idx *batch_size:(idx+1) * batch_size]
+        yield x
+
+def truncate(sen, max_length=512):
+    return ' '.join(sen.split()[:max_length])
+
+# function for selecting LLM based on model type
+def get_llm(model_type, model_id, use_cuda):
+    if use_cuda:
+        # device = torch.device('cuda:0')
+        device = 0
+        dtype = torch.float16
+    else:
+        device = torch.device('cpu')
+        dtype = torch.float32
+    
+    if model_type == 'huggingface':
+        if re.search('t5-|alpaca|bart-', model_id):
+            pipe_type = "text2text-generation"
+        else:
+            pipe_type = "text-generation"    
+        print(pipe_type)
+        
+        if 'llama' in model_id:
+            from transformers import LlamaTokenizer
+            tokenizer = LlamaTokenizer.from_pretrained(model_id)
+        else:
+            tokenizer = None
+        
+        hf_pipe = pipeline(pipe_type, model=model_id, tokenizer=tokenizer,device=device, torch_dtype=dtype)
+        llm = hf_pipe#
+        print(llm)
+
+    elif model_type.startswith('openai'):
+        API_KEY = os.getenv("OPENAI_API_KEY")
+        if API_KEY is None:
+            API_KEY = getpass("Paste your OpenAI key from: https://platform.openai.com/account/api-keys\n")
+            assert API_KEY.startswith("sk-"), "This doesn't look like a valid OpenAI API key"
+            
+            print("OpenAI API key configured")
+
+        if model_type == 'openai':
+            llm = OpenAI(model_name=model_id, temperature=0, openai_api_key=API_KEY)
+            
+        if model_type == 'openai_chat':
+            llm = ChatOpenAI(model_name=model_id, temperature=0, openai_api_key=API_KEY)
+    
+    else:
+        print("Unsupported Model: {}".format(model_type))
+
+    
+    return pipe_type, llm
+
+args = parser.parse_args()
+print(args)
+
+# modify transformers cache
+if args.model_cache_dir:
+    os.environ['TRANSFORMERS_CACHE'] = args.model_cache_dir
+
+
+if not os.path.exists(args.result_path):
+    os.makedirs(args.result_path)
+
+# load prompts
+ppt_df = pd.read_csv('socket_prompts.csv')
+
+if args.task in ['CLS','REG','PAIR','SPAN']:
+    tasks_df = ppt_df[ppt_df['type']==args.task]
+elif args.task == 'ALL':
+    tasks_df = ppt_df
+elif args.task in set(ppt_df['task']):
+    tasks_df = ppt_df[ppt_df['task']==args.task]
+else: 
+    print('task type not accepted')
+    quit()
+
+# fetch LLM
+use_cuda = args.use_cuda
+model_type, model_id = args.model_type, args.model_name_or_path
+pipe_type, target_llm = get_llm(model_type, model_id, use_cuda)
+data_name_or_path, data_split = args.data_name_or_path, args.data_split
+
+# set result directory
+res_path = os.path.join(args.result_path, '%s_res.tsv'%args.model_name_or_path.replace('/','-'))
+perf_path = os.path.join(args.result_path, '%s_perf.tsv'%args.model_name_or_path.replace('/','-'))
+
+# create empty dataframes to save results
+res_df = pd.read_csv(res_path) if os.path.exists(res_path) else pd.DataFrame()
+perf_df = pd.read_csv(perf_path) if os.path.exists(perf_path) else pd.DataFrame(columns=['task', 'p', 'r', 'f1', 'test_size', 'invalid_answer_cnt'])
+tasks_df = tasks_df[~tasks_df['task'].isin(set(perf_df['task']))]
+print('%d tasks remaining'%len(tasks_df))
+
+# for each task
+for i,task_info in tqdm(tasks_df.iterrows()):
+    task_info = dict(task_info)
+    task, task_type = task_info['task'],task_info['type']
+    print(task_info)
+    
+    # load dataset for task
+    dataset = load_dataset(args.data_name_or_path, task, data_split)[data_split]
+    
+    if task_type == 'PAIR' or task_type == 'CLS':
+        ppt_template = "%s \nOptions:\n%s\n Please only answer with the options. "%(task_info['question'], '\n'.join(eval(task_info['options'])))
+    else:
+        ppt_template = "%s \n"%(task_info['question'])
+    
+    # specify instructions for alpaca or llama-2 models
+    if re.search('alpaca|llama2', model_id):
+        ppt_template = "Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.\
+        \n\n### Instruction:\nYou will be presented with a question, please answer that correctly.\
+        \n\n### Input:\n%s Provide the answer without explaining your reasoning. \n\n### Response:"%ppt_template
+    else:
+        ppt_template = "Question: %sAnswer:"%ppt_template
+    print(ppt_template)
+    
+    if task_type == 'PAIR':
+        pairs = [it.split('[SEP]') for it in dataset['text']]
+        dataset = dataset.add_column('prompt', [ppt_template.replace("{text_a}", it[0]).replace("{text_b}", it[1]) for it in pairs])
+    else:
+        dataset = dataset.add_column('prompt', [ppt_template.replace("{text}", truncate(it, args.max_length)) for it in dataset['text']])
+    
+    print(dataset['prompt'][:1])
+    
+    if task_type == 'PAIR' or task_type == 'CLS':
+        d_labels = [it.replace('-', ' ').lower() for it in dataset.info.features['label'].names]
+        labels = eval(task_info['options'])
+        label2id = {l:i for i,l in enumerate(labels)}
+        print(d_labels, labels, label2id)
+
+    # optional: use only up to first 1000 samples (SOCKETTE) for quicker evaluation
+    if args.unit_test:
+        dataset = dataset[:32]
+    elif args.use_sockette:
+        dataset = dataset[:1000]
+    
+    # iterate through batches to get prediction results    
+    batch_size=int(args.batch_size)
+    data_iter = data_iterator(dataset['prompt'], batch_size)
+    outputs = []
+    for batch in tqdm(data_iter, total=int(len(dataset['prompt'])/batch_size)):
+        if pipe_type=='text-generation':
+            output = target_llm(batch, max_new_tokens = args.max_new_tokens, return_full_text=False, clean_up_tokenization_spaces=True)
+        elif pipe_type=='text2text-generation':
+            output = target_llm(batch, max_new_tokens = args.max_new_tokens)
+        elif pipe_type=='gpt':
+            sys.exit(0) # unimplemented
+        
+        outputs.extend(output)
+    
+    # process prediction results
+    dataset = pd.DataFrame(dataset)
+    dataset['task'] = task
+    outs = []
+    for it in outputs:
+        answer = it[0]['generated_text'].strip().split('\n')[0].strip()
+        # if re.search(r'\nAnswer:|\sResponse:',it):
+        #     answer = re.split("\nAnswer:|\sResponse:", it)[-1].strip().strip('\n').strip('.')
+        outs.append(answer)
+        # if task_type in ['PAIR','CLS']:
+        #     outs.append(answer)
+        #     if answer in label2id:
+        #         outs.append(label2id[answer])
+        #     else:
+        #         outs.append(None)
+        # elif task_type in ['REG']:
+        #     try:
+        #         outs.append(float(answer)) 
+        #     except:
+        #         outs.append(None)
+        # else:
+        #     outs.append(answer)
+    dataset['generated_text'] = outs
+    res_df = pd.concat([res_df, dataset])
+    
+    # save updated predictions
+    res_df.to_csv(res_path,index=False,sep='\t')
+    
+
+    # print results
+    # print(len(dataset), len(dataset[dataset['pred'].isna()]))
+    # dataset = dataset[~dataset['pred'].isna()]
+    # print(list(dataset)[:2])
+    
+    # perf_dict = {'task':task}
+    # # compute scores
+    # if task_type in ['PAIR','CLS']:
+    #     perf_dict['p'], perf_dict['r'], perf_dict['f1'], _ =  precision_recall_fscore_support(dataset['label'], dataset['pred'], average='macro')
+    # elif task_type == 'SPAN':
+    #     span_labels = [' '.join(list(it.values())[0]) for it in dataset['label']]
+    #     perf_dict['p'], perf_dict['r'], perf_dict['f1'] = get_all_f1(span_labels, dataset['pred'])
+    # elif task_type== 'REG':
+    #     perf_dict['p'], perf_dict['r'] = None, None
+    #     perf_dict['f1'] = dataset['pred'].astype(float).corr(dataset['label'].astype(float))
+    # perf_dict['test_size'] = len(dataset)
+    # perf_dict['invalid_answer_cnt'] = len(dataset[dataset['pred'].isna()])
+    
+    # # save updated scores
+    # perf_df.loc[len(perf_df.index)] = perf_dict
+    # perf_df.to_csv(perf_path,index=False)
+    # print(i, task, perf_dict)
+    
+    
