@@ -209,8 +209,8 @@ res_path = os.path.join(args.result_path, '%s_res.tsv'%args.model_name_or_path.r
 perf_path = os.path.join(args.result_path, '%s_perf.tsv'%args.model_name_or_path.replace('/','-'))
 
 # create empty dataframes to save results
-res_df = pd.read_csv(res_path) if os.path.exists(res_path) else pd.DataFrame()
-perf_df = pd.read_csv(perf_path) if os.path.exists(perf_path) else pd.DataFrame(columns=['task', 'p', 'r', 'f1', 'test_size', 'invalid_answer_cnt'])
+res_df = pd.read_csv(res_path,sep='\t') if os.path.exists(res_path) else pd.DataFrame()
+perf_df = pd.read_csv(perf_path,sep='\t') if os.path.exists(perf_path) else pd.DataFrame(columns=['task', 'p', 'r', 'f1', 'test_size', 'invalid_answer_cnt'])
 tasks_df = tasks_df[~tasks_df['task'].isin(set(perf_df['task']))]
 print('%d tasks remaining'%len(tasks_df))
 
@@ -294,7 +294,10 @@ for i,task_info in tqdm(tasks_df.iterrows()):
     dataset['task'] = task
     outs = []
     for it in outputs:
-        answer = it[0]['generated_text'].strip().split('\n')[0].strip()
+        if pipe_type=='text-generation':
+            answer = it[0]['generated_text'].strip().split('\n')[0].strip()
+        elif pipe_type=='text2text-generation':
+            answer = it['generated_text'].split('Response:')[1].strip().split('\n')[0].strip()
         # if re.search(r'\nAnswer:|\sResponse:',it):
         #     answer = re.split("\nAnswer:|\sResponse:", it)[-1].strip().strip('\n').strip('.')
         outs.append(answer)
