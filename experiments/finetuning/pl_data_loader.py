@@ -46,7 +46,7 @@ class SOCKETDataModule(LightningDataModule):
                  model_name_or_path,
                  model_cache_dir=None,
                  tasks=None,
-                 data_cache_dir='../../.cache',
+                 data_cache_dir=None,
                  train_batch_size=8,
                  eval_batch_size=16,
                  num_workers=4,
@@ -68,9 +68,8 @@ class SOCKETDataModule(LightningDataModule):
             input_datasets[task]={}
             self.dataset_info[task]={}
             dataset = load_dataset(
-                path='../../SOCKET.py',
+                'Blablablab/SOCKET',task,
                 cache_dir=self.hparams.data_cache_dir,
-                name=task
             )
             self.dataset_info[task]['task_idx']=idx
 
