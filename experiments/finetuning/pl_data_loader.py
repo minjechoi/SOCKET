@@ -221,6 +221,7 @@ class SOCKETDataModule(LightningDataModule):
                 else:
                     tokenized_text_out.append(idx)
                     labels.append(0)  # O
+            labels = [0] + labels + [0] # necessary since tokenizer.encode will automatically include start & end tokens
             text_out = self.tokenizer.decode(tokenized_text_out)
             all_texts.append(text_out)
             all_labels.append(labels)
@@ -287,9 +288,9 @@ if __name__=='__main__':
 
     # snippet to test if dataloader worksß
     list_of_tasks = [
-        # 'hasbiasedimplication',
-        # 'questionintimacy',
-        # 'neutralizing-bias-pairs',
+        'hasbiasedimplication',
+        'questionintimacy',
+        'neutralizing-bias-pairs',
         'emotion-span',
         'propaganda-span',
     ]
