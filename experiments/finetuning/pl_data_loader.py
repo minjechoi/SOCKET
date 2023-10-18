@@ -46,6 +46,7 @@ class SOCKETDataModule(LightningDataModule):
                  model_name_or_path,
                  model_cache_dir=None,
                  tasks=None,
+                 use_sockette=False,
                  data_cache_dir=None,
                  train_batch_size=8,
                  eval_batch_size=16,
@@ -109,6 +110,7 @@ class SOCKETDataModule(LightningDataModule):
         parser = parent_parser.add_argument_group("SOCKETDataModule")
         parser.add_argument("--tasks", type=str, default=None)
         parser.add_argument("--data_cache_dir", type=str, default=None)
+        parser.add_argument("--use_sockette", action='store_true')
         parser.add_argument("--train_batch_size", type=int, default=8)
         parser.add_argument("--eval_batch_size", type=int, default=16)
         parser.add_argument("--num_workers", type=int, default=4)
@@ -131,6 +133,10 @@ class SOCKETDataModule(LightningDataModule):
                     texts,labels = self.process_span_dataset(D[split],task)
                 else:
                     texts,labels = self.process_cls_dataset(D[split])
+                    
+                if (split=='test') & self.hparams.use_sockette:
+                    texts = texts[:1000]
+                    labels = labels[:1000]
 
                 outputs[split]['texts'].extend(texts)
                 outputs[split]['labels'].extend(labels)
@@ -298,13 +304,13 @@ if __name__=='__main__':
 
     dm = SOCKETDataModule(
             model_name_or_path='bert-base-uncased',
-            # model_cache_dir='/shared/3/projects/SOCKET/.cache/huggingface/transformers',
+            model_cache_dir='/shared/3/projects/SOCKET/.cache/huggingface/transformers',
             **dict_args)
     dm.setup()
     for i,batch in enumerate(dm.train_dataloader()):
         continue
 
 """
-python pl_data_loader.py --tasks=tweet_hate,tweet_irony
+python pl_data_loader.py --tasks=sarc
 """
 
