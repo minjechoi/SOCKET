@@ -20,7 +20,6 @@ from transformers import (
 
 from pl_data_loader import SOCKETDataModule
 
-
 class SOCKETModule(LightningModule):
     def __init__(
         self,
@@ -43,7 +42,7 @@ class SOCKETModule(LightningModule):
 
     def add_model_specific_args(parent_parser):
         parser = parent_parser.add_argument_group("SOCKETModule")
-        parser.add_argument("--model_name_or_path", type=str, default=None)
+        parser.add_argument("--model_name_or_path", type=str, default='microsoft/deberta-v3-base')
         parser.add_argument("--model_cache_dir", type=str,
                             default='../../.cache/')
         parser.add_argument("--hidden_size", type=int, default=768)
@@ -177,7 +176,6 @@ class SOCKETModule(LightningModule):
         assert len(batch['tasks'])==len(batch['input_ids'])
         tasks = [self.list_of_tasks[i] for i in batch['tasks'].detach().cpu().tolist()]
         unique_tasks = list(set(tasks))
-        # print(unique_tasks)
 
         for task_no,task in enumerate(unique_tasks):
             # get indices from the list of tasks
@@ -194,7 +192,6 @@ class SOCKETModule(LightningModule):
                     logits[attention_mask],
                     labels[attention_mask],
                     reduction='none').detach().cpu().tolist()
-                # print(task_type,logits.size(),labels.size())
                 f1_values=[]
                 for i in range(len(labels)):
                     attn=attention_mask[i]
@@ -210,7 +207,6 @@ class SOCKETModule(LightningModule):
                     'losses': losses}
             else:
                 pooled_output = output[:,0] # use [CLS] token
-                # print(batch['input_ids'].size(), len(idxs), pooled_output.size())
                 task_outputs = torch.stack([pooled_output[i] for i in idxs], 0)
                 logits = self.classifier_dict[task](task_outputs)
                 labels = torch.stack([batch['labels'][i][0] for i in idxs])
@@ -255,7 +251,6 @@ class SOCKETModule(LightningModule):
         log_dict['val_total_loss'] = np.mean(total_losses)
         for task,obj in task_specific_values.items():
             task_type = self.dataset_info[task]['task_type']
-            # print(obj)
             if task_type=='classification':
                 acc=accuracy_score(y_true=obj['answers'],y_pred=obj['predictions'])
                 log_dict[f'val_{task}_acc']=round(acc,3)
@@ -266,7 +261,6 @@ class SOCKETModule(LightningModule):
                 log_dict[f'val_{task}_f1'] = round(f1, 3)
 
             log_dict[f'val_{task}_loss'] = np.mean(obj['losses'])
-        # log_dict['val_total_acc'] = np.mean([v for k,v in log_dict.items() if k.endswith('_acc')])
         print(log_dict)
         self.log_dict(log_dict,prog_bar=False)
         return
@@ -290,7 +284,6 @@ class SOCKETModule(LightningModule):
         log_dict['test_total_loss'] = np.mean(total_losses)
         for task,obj in task_specific_values.items():
             task_type = self.dataset_info[task]['task_type']
-            # print(obj)
             if task_type=='classification':
                 acc=accuracy_score(y_true=obj['answers'],y_pred=obj['predictions'])
                 log_dict[f'test_{task}_acc']=round(acc,3)
@@ -304,7 +297,6 @@ class SOCKETModule(LightningModule):
                 log_dict[f'test_{task}_corr'] = round(corr, 3)
 
             log_dict[f'test_{task}_loss'] = np.mean(obj['losses'])
-        # log_dict['val_total_acc'] = np.mean([v for k,v in log_dict.items() if k.endswith('_acc')])
         print(log_dict)
         self.log_dict(log_dict,prog_bar=False)
         return log_dict
@@ -319,6 +311,8 @@ class SOCKETModule(LightningModule):
                 logits = logits.reshape(-1,1)
             elif self.dataset_info[model_task]['task_type'] == 'classification':
                 logits = logits.softmax(dim=1)
+            elif self.dataset_info[model_task]['task_type'] == 'span':
+                pass
             logits = logits.detach().cpu().tolist()
             result[model_task]=logits
         tasks = batch['tasks'].detach().cpu().tolist()
@@ -364,7 +358,6 @@ class SOCKETModule(LightningModule):
 class ClassifierHead(nn.Module):
     def __init__(self, num_labels=2, hidden_size=768, dropout_prob=0.1):
         super().__init__()
-        # from transformers.models.roberta.modeling_roberta import *
         self.dense = nn.Linear(hidden_size, hidden_size)
 
         self.dropout = nn.Dropout(dropout_prob)
