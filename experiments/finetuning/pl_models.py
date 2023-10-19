@@ -1,3 +1,4 @@
+import re
 import faulthandler
 faulthandler.enable()
 
@@ -12,7 +13,7 @@ from torch import nn
 from torch.optim import AdamW
 from pytorch_lightning import Trainer
 from transformers import (
-    AutoConfig,AutoModel,
+    AutoConfig,AutoModel,AutoTokenizer,
     get_linear_schedule_with_warmup,
     get_constant_schedule,
     get_constant_schedule_with_warmup
@@ -39,12 +40,12 @@ class SOCKETModule(LightningModule):
     ):
         super().__init__()
         self.save_hyperparameters()
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path, cache_dir=model_cache_dir)
 
     def add_model_specific_args(parent_parser):
         parser = parent_parser.add_argument_group("SOCKETModule")
         parser.add_argument("--model_name_or_path", type=str, default='microsoft/deberta-v3-base')
-        parser.add_argument("--model_cache_dir", type=str,
-                            default='../../.cache/')
+        parser.add_argument("--model_cache_dir", type=str, default=None)
         parser.add_argument("--hidden_size", type=int, default=768)
         parser.add_argument("--learning_rate", type=float, default=2e-5)
         parser.add_argument("--adam_epsilon", type=float, default=1e-8)
@@ -192,16 +193,24 @@ class SOCKETModule(LightningModule):
                     logits[attention_mask],
                     labels[attention_mask],
                     reduction='none').detach().cpu().tolist()
+                # modify this part to character-level span f1 score
                 f1_values=[]
-                for i in range(len(labels)):
-                    attn=attention_mask[i]
-                    label=labels[i][attn]
-                    logit=logits[i][attn]
-                    y_true=(label>0).long().detach().cpu().tolist()
-                    y_pred=(logit[:,0]<0.5).long().detach().cpu().tolist()
-                    if sum(y_true)>0:
-                        f1=f1_score(y_true,y_pred)
-                        f1_values.append(f1)
+                task_inputs = torch.stack([batch['input_ids'][i] for i in idxs],0).detach().cpu()
+                mat1 = torch.where(labels>0,task_inputs,self.tokenizer.pad_token_id) # matrix for gold answer tokens
+                preds = logits.argmax(2).detach().cpu()
+                mat2 = torch.where(preds>0,task_inputs,self.tokenizer.pad_token_id) # matrix for predicted tokens
+                for i in range(len(task_inputs)):
+                    arr1,arr2,arr3 = task_inputs[i], mat1[i], mat2[i]
+                    text_in, text_ans, text_pred = self.tokenizer.decode(arr1), self.tokenizer.decode(arr2), self.tokenizer.decode(arr3)
+                    span_answers = [x.strip() for x in text_ans.split(self.tokenizer.pad_token) if len(x.strip())>=3] # get answer spans
+                    span_preds = [x.strip() for x in text_pred.split(self.tokenizer.pad_token) if len(x.strip())>=3] # get predicted spans
+                    span_preds = [self.longest_common_substring(text_in,span) for span in span_preds]
+                    span_preds = [x for x in span_preds if len(x)>=3]
+                    pred_indices = self.find_substring_indices(text_in, span_preds)
+                    true_indices = self.find_substring_indices(text_in, span_answers)
+                    f1 = self.get_span_f1(pred_indices, true_indices)
+                    f1_values.append(f1)
+                    
                 task_specific_values[task] = {
                     'f1_scores':f1_values,
                     'losses': losses}
@@ -353,6 +362,58 @@ class SOCKETModule(LightningModule):
         scheduler = {"scheduler": scheduler, "interval": "step", "frequency": 1}
         self.optimizer = optimizer
         return [optimizer], [scheduler]
+    
+    ## functions for span detection task
+    def find_substring_indices(self, s, substrings):
+        # get all character indices in string based on substrings
+        indices = []
+        for substring in substrings:
+            start = 0
+            while start < len(s):
+                start = s.find(substring, start)
+                if start == -1:
+                    break
+                indices.extend(list(range(start,start + len(substring))))
+                start += len(substring)
+        return sorted(indices)
+
+    def get_span_f1(self, predictions, gold):
+        """
+        Based on Jaccard similarity
+        F1 (a.k.a. DICE) operating on two lists of offsets (e.g., character).
+        >>> assert f1([0, 1, 4, 5], [0, 1, 6]) == 0.5714285714285714
+        :param predictions: a list of predicted offsets
+        :param gold: a list of offsets serving as the ground truth
+        :return: a score between 0 and 1
+        """
+        if len(gold) == 0:
+            return 1 if len(predictions)==0 else 0
+        nom = 2*len(set(predictions).intersection(set(gold)))
+        denom = len(set(predictions))+len(set(gold))
+        return nom/denom
+
+    def extract_spans(self, text):
+        # extract spans based on two rules: (1) quoted substrings, or (2) original string
+        quoted = re.findall(r'"(.*?)"', text)
+        if len(quoted):
+            return quoted
+        else:
+            return [text]
+        
+    def longest_common_substring(self, S1, S2):
+        # longest common substring between S1 (input text) vs S2 (substring)
+        m = [[0] * (1 + len(S2)) for _ in range(1 + len(S1))]
+        longest, x_longest = 0, 0
+        for x in range(1, 1 + len(S1)):
+            for y in range(1, 1 + len(S2)):
+                if S1[x - 1] == S2[y - 1]:
+                    m[x][y] = m[x - 1][y - 1] + 1
+                    if m[x][y] > longest:
+                        longest = m[x][y]
+                        x_longest = x
+                else:
+                    m[x][y] = 0
+        return S1[x_longest - longest: x_longest]
 
 # Classifier head for generic task
 class ClassifierHead(nn.Module):
@@ -415,7 +476,6 @@ if __name__=='__main__':
 
     dm = SOCKETDataModule(
             **dict_args)
-
     model = SOCKETModule(list_of_tasks=list_of_tasks, dataset_info=dm.dataset_info,**dict_args)
     trainer = Trainer.from_argparse_args(args)
     trainer.fit(model,datamodule=dm)
