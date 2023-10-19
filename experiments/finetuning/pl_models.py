@@ -321,7 +321,7 @@ class SOCKETModule(LightningModule):
             elif self.dataset_info[model_task]['task_type'] == 'classification':
                 logits = logits.softmax(dim=1)
             elif self.dataset_info[model_task]['task_type'] == 'span':
-                pass
+                logits = logits.argmax(dim=2)
             logits = logits.detach().cpu().tolist()
             result[model_task]=logits
         tasks = batch['tasks'].detach().cpu().tolist()
