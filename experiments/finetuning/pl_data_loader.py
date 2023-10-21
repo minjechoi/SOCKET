@@ -44,6 +44,7 @@ class DefaultDataset(Dataset):
 class SOCKETDataModule(LightningDataModule):
     def __init__(self,
                  model_name_or_path,
+                 splits,
                  model_cache_dir=None,
                  tasks=None,
                  use_sockette=False,
@@ -64,7 +65,8 @@ class SOCKETDataModule(LightningDataModule):
         self.dataset_info = {}
 
         input_datasets = {}
-        splits = ['train','test','validation']
+        # splits = ['test']
+        # splits = ['train','test','validation']
         for idx,task in enumerate(self.list_of_tasks):
             input_datasets[task]={}
             self.dataset_info[task]={}
@@ -128,7 +130,6 @@ class SOCKETDataModule(LightningDataModule):
             for task,D in input_datasets.items():
                 task_type = self.dataset_info[task]['task_type']
                 task_idx = self.dataset_info[task]['task_idx'] # required to pass this to the dataloader as a tensor
-                total_samples+=len(D[split])
                 if task_type=='span':
                     texts,labels = self.process_span_dataset(D[split],task)
                 else:
@@ -137,6 +138,7 @@ class SOCKETDataModule(LightningDataModule):
                 if (split=='test') & self.hparams.use_sockette:
                     texts = texts[:1000]
                     labels = labels[:1000]
+                total_samples+=len(labels)
 
                 outputs[split]['texts'].extend(texts)
                 outputs[split]['labels'].extend(labels)
@@ -209,9 +211,6 @@ class SOCKETDataModule(LightningDataModule):
             tokenized_text_out = []
             labels = []
             n_masks = 0
-            # print(ln,tokenized_labels2)
-            # print(ln,tokenized_text)
-            # print('\n\n')
             for i, idx in enumerate(tokenized_text):
                 if idx == self.tokenizer.mask_token_id:
                     st, ed, span, tok_label = tokenized_labels2[n_masks]
@@ -255,6 +254,7 @@ class SOCKETDataModule(LightningDataModule):
         sentences, labels = [],[]
         tasks, task_types = [],[]
         for obj in batch:
+            # print('obj at begingging of collate function',obj)
             text,label,task,task_type=obj['text'],obj['label'],obj['task'],obj['task_type']
             if self.tokenizer.sep_token in text:
                 text=tuple(text.split(self.tokenizer.sep_token))
@@ -264,6 +264,7 @@ class SOCKETDataModule(LightningDataModule):
                 labels.append(label)
             else:
                 labels.append([label])
+            # print('labels at beginning of collate function',obj['label'])
 
         # create output object
         output = self.tokenizer.batch_encode_plus(sentences,
@@ -279,8 +280,10 @@ class SOCKETDataModule(LightningDataModule):
                 label=label+[0]*(max_length-len(label))
             output['labels'].append(label)
 
+        # print("labels before converting to torch tensors",output['labels'])
         for k,v in output.items():
             output[k]=torch.tensor(v)
+        # print("labels at end of collate function",output['labels'])
         return output
 
 if __name__=='__main__':
