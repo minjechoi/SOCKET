@@ -98,11 +98,11 @@ class SOCKETModule(LightningModule):
         else:
             self.hparams.warmup_steps = int(self.hparams.warmup_steps)
 
-        print('Max steps:',self.total_steps)
-        print("tb size",tb_size)
-        print("Len train loader",len(train_loader))
-        print("Max epochs",self.trainer.max_epochs)
-        print('Warmup steps:',self.hparams.warmup_steps)
+        # print('Max steps:',self.total_steps)
+        # print("tb size",tb_size)
+        # print("Len train loader",len(train_loader))
+        # print("Max epochs",self.trainer.max_epochs)
+        # print('Warmup steps:',self.hparams.warmup_steps)
 
     def forward(self, batch):
         # get outputs from encoder
@@ -134,15 +134,15 @@ class SOCKETModule(LightningModule):
             idxs = [i for i,x in enumerate(tasks) if x==task]
 
             # if span
-            if self.dataset_info[task]['task_type'] == 'span':
-                if task_type == 'span':
-                    task_outputs = torch.stack([output[i] for i in idxs], 0)
-                    labels = torch.stack([batch['labels'][i] for i in idxs], 0)
-                    attention_mask = torch.stack([batch['attention_mask'][i] for i in idxs]).bool()
-                    logits = self.classifier_dict[task](task_outputs)
-                    labels = labels[attention_mask].long()
-                    logits = logits[attention_mask]
-                    loss = F.cross_entropy(logits, labels)
+            # if self.dataset_info[task]['task_type'] == 'span':
+            if task_type == 'span':
+                task_outputs = torch.stack([output[i] for i in idxs], 0)
+                labels = torch.stack([batch['labels'][i] for i in idxs], 0)
+                attention_mask = torch.stack([batch['attention_mask'][i] for i in idxs]).bool()
+                logits = self.classifier_dict[task](task_outputs)
+                labels = labels[attention_mask].long()
+                logits = logits[attention_mask]
+                loss = F.cross_entropy(logits, labels)
             else:
                 pooled_output = output[:,0] # use [CLS] token
                 task_outputs = torch.stack([pooled_output[i] for i in idxs], 0)
@@ -170,6 +170,7 @@ class SOCKETModule(LightningModule):
         return total_loss
 
     def validation_step(self, batch, batch_idx):
+        # print("labels at beginning of validation step",batch['labels'])
         output = self.forward(batch)
 
         # organize by tasks
@@ -178,6 +179,7 @@ class SOCKETModule(LightningModule):
         tasks = [self.list_of_tasks[i] for i in batch['tasks'].detach().cpu().tolist()]
         unique_tasks = list(set(tasks))
 
+        # print('labels right after putting into model',batch['labels'])
         for task_no,task in enumerate(unique_tasks):
             # get indices from the list of tasks
             idxs = [i for i,x in enumerate(tasks) if x==task]
@@ -195,6 +197,7 @@ class SOCKETModule(LightningModule):
                     reduction='none').detach().cpu().tolist()
                 # modify this part to character-level span f1 score
                 f1_values=[]
+                labels = labels.detach().cpu()
                 task_inputs = torch.stack([batch['input_ids'][i] for i in idxs],0).detach().cpu()
                 mat1 = torch.where(labels>0,task_inputs,self.tokenizer.pad_token_id) # matrix for gold answer tokens
                 preds = logits.argmax(2).detach().cpu()
@@ -258,18 +261,27 @@ class SOCKETModule(LightningModule):
 
         log_dict = {}
         log_dict['val_total_loss'] = np.mean(total_losses)
+        task_scores = []
         for task,obj in task_specific_values.items():
             task_type = self.dataset_info[task]['task_type']
             if task_type=='classification':
-                acc=accuracy_score(y_true=obj['answers'],y_pred=obj['predictions'])
-                log_dict[f'val_{task}_acc']=round(acc,3)
+                # acc=accuracy_score(y_true=obj['answers'],y_pred=obj['predictions'])
+                # log_dict[f'val_{task}_acc']=round(acc,3)
                 f1 = f1_score(y_true=obj['answers'], y_pred=obj['predictions'], average='macro')
                 log_dict[f'val_{task}_f1'] = round(f1, 3)
+                task_scores.append(f1)
             elif task_type=='span':
                 f1 = np.mean(obj['f1_scores'])
                 log_dict[f'val_{task}_f1'] = round(f1, 3)
+                task_scores.append(f1)
+            elif task_type=='regression':
+                corr,_ = pearsonr(obj['answers'],obj['predictions'])
+                log_dict[f'val_{task}_corr'] = round(corr, 3)
+                task_scores.append((1+corr)/2)
 
             log_dict[f'val_{task}_loss'] = np.mean(obj['losses'])
+
+        log_dict['val_total_score'] = np.mean(task_scores)
         print(log_dict)
         self.log_dict(log_dict,prog_bar=False)
         return
