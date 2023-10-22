@@ -185,11 +185,11 @@ if __name__=='__main__':
                 scores = []
                 n_miss = 0
                 for text,label,pred in df2[['text','label','generated_text']].values:
-                    # remove if entire input is included
-                    pred = pred.replace(text,'').strip()
                     label = ast.literal_eval(label)
                     spans = list(label.values())[0]
                     if type(pred)==str:
+                        # remove if entire input is included
+                        pred = pred.replace(text,'').strip()
                         pred = extract_spans(pred)
                         pred2 = [longest_common_substring(text,span) for span in pred]
                         pred2 = [x for x in pred2 if len(x)>=3]
