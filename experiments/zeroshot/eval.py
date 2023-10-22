@@ -23,7 +23,7 @@ def find_substring_indices(s, substrings):
                 break
             indices.extend(list(range(start,start + len(substring))))
             start += len(substring)
-    return sorted(indices)
+    return sorted(set(indices))
 
 def get_span_f1(predictions, gold):
     """
@@ -61,7 +61,7 @@ def longest_common_substring(S1, S2):
                     x_longest = x
             else:
                 m[x][y] = 0
-    return S1[x_longest - longest: x_longest]
+    return S1[x_longest - longest: x_longest].strip()
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
