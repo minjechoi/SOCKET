@@ -70,7 +70,7 @@ if __name__=='__main__':
     parser.add_argument("--replace_missing", action='store_true', help="When set, fills in random scores for samples that the LLM was unable to generate any answer")
     args = parser.parse_args()
 
-    data_dir = args.data_dir
+    data_dir = args.prediction_path
         
     # load prompt data
     ppt_df = pd.read_csv('socket_prompts.csv')
@@ -203,7 +203,7 @@ if __name__=='__main__':
                     f1 = get_span_f1(pred_indices, true_indices)
                     scores.append(f1)
                 out.append((model,task,task_type,'hit_rate',1-n_miss/len(df2)))
-                out.append((model,task,task_type,'f1',f1))
+                out.append((model,task,task_type,'f1',np.mean(scores)))
     
     # save results
     df_out = pd.DataFrame(out,columns=['model','task','task_type','metric','score'])
