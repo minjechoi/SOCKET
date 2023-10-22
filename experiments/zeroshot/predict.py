@@ -146,15 +146,20 @@ if not os.path.exists(args.result_path):
 # load prompts
 ppt_df = pd.read_csv('socket_prompts.csv')
 
-if args.task in ['CLS','REG','PAIR','SPAN']:
-    tasks_df = ppt_df[ppt_df['type']==args.task]
-elif args.task == 'ALL':
+if args.tasks in ['CLS','REG','PAIR','SPAN']:
+    tasks_df = ppt_df[ppt_df['type']==args.tasks]
+elif args.tasks == 'ALL':
     tasks_df = ppt_df
-elif args.task in set(ppt_df['task']):
-    tasks_df = ppt_df[ppt_df['task']==args.task]
+elif args.tasks in set(ppt_df['task']):
+    tasks_df = ppt_df[ppt_df['task']==args.tasks]
+elif ',' in args.tasks:
+    tasks = args.tasks.split(',')
+    tasks_df = pd.concat([ppt_df[ppt_df['task']==task] for task in tasks],axis=0)
 else: 
     print('task type not accepted')
     quit()
+print(tasks_df)
+print(tasks_df.columns)
 
 # fetch LLM
 use_cuda = args.use_cuda
@@ -185,7 +190,6 @@ if model_type == 'huggingface':
         config = AutoConfig.from_pretrained(model_id)
     hf_pipe = pipeline(pipe_type, model=model_id, tokenizer=tokenizer, device=device, torch_dtype=dtype)
     llm = hf_pipe#
-    print(llm)    
 elif model_type.startswith('openai'):
     API_KEY = os.getenv("OPENAI_API_KEY")
     if API_KEY is None:
@@ -206,12 +210,11 @@ data_name_or_path, data_split = args.data_name_or_path, args.data_split
 
 # set result directory
 res_path = os.path.join(args.result_path, '%s_res.tsv'%args.model_name_or_path.replace('/','-'))
-perf_path = os.path.join(args.result_path, '%s_perf.tsv'%args.model_name_or_path.replace('/','-'))
 
 # create empty dataframes to save results
 res_df = pd.read_csv(res_path,sep='\t') if os.path.exists(res_path) else pd.DataFrame()
-perf_df = pd.read_csv(perf_path,sep='\t') if os.path.exists(perf_path) else pd.DataFrame(columns=['task', 'p', 'r', 'f1', 'test_size', 'invalid_answer_cnt'])
-tasks_df = tasks_df[~tasks_df['task'].isin(set(perf_df['task']))]
+prev_tasks = set(res_df['task']) if len(res_df) else set()
+tasks_df = tasks_df[~tasks_df['task'].isin(prev_tasks)]
 print('%d tasks remaining'%len(tasks_df))
 
 # for each task
@@ -229,7 +232,7 @@ for i,task_info in tqdm(tasks_df.iterrows()):
         ppt_template = "%s\n"%(task_info['question'])
     
     # specify instructions for alpaca or llama-2 models
-    if re.search('alpaca|llama2', model_id):
+    if re.search('alpaca|llama', model_id):
         ppt_template = "Below is an instruction that describes a task, paired with an input that provides further context. Write a response that appropriately completes the request.\
         \n\n### Instruction:\nYou will be presented with a question, please answer that correctly.\
         \n\n### Input:\n%s Provide the answer without explaining your reasoning. \n\n### Response:"%ppt_template
@@ -271,7 +274,7 @@ for i,task_info in tqdm(tasks_df.iterrows()):
 
     # optional: use only up to first 1000 samples (SOCKETTE) for quicker evaluation
     if args.unit_test:
-        dataset = dataset[:32]
+        dataset = dataset[:args.batch_size]
     elif args.use_sockette:
         dataset = dataset[:1000]
     
@@ -285,7 +288,7 @@ for i,task_info in tqdm(tasks_df.iterrows()):
         elif pipe_type=='text2text-generation':
             output = llm(batch, max_new_tokens = args.max_new_tokens)
         elif pipe_type=='gpt':
-            sys.exit(0) # unimplemented
+            sys.exit(0) # later
         
         outputs.extend(output)
     
@@ -295,53 +298,17 @@ for i,task_info in tqdm(tasks_df.iterrows()):
     outs = []
     for it in outputs:
         if pipe_type=='text-generation':
-            answer = it[0]['generated_text'].strip().split('\n')[0].strip()
+            if 'llama' in model_id:
+                answer = ' '.join(it[0]['generated_text'].split()).strip()
+            else:
+                answer = it[0]['generated_text'].strip().split('\n')[0].strip()
         elif pipe_type=='text2text-generation':
-            answer = it['generated_text'].split('Response:')[1].strip().split('\n')[0].strip()
-        # if re.search(r'\nAnswer:|\sResponse:',it):
-        #     answer = re.split("\nAnswer:|\sResponse:", it)[-1].strip().strip('\n').strip('.')
+            answer = ' '.join(it['generated_text'].split()).strip()
         outs.append(answer)
-        # if task_type in ['PAIR','CLS']:
-        #     outs.append(answer)
-        #     if answer in label2id:
-        #         outs.append(label2id[answer])
-        #     else:
-        #         outs.append(None)
-        # elif task_type in ['REG']:
-        #     try:
-        #         outs.append(float(answer)) 
-        #     except:
-        #         outs.append(None)
-        # else:
-        #     outs.append(answer)
+    
     dataset['generated_text'] = outs
     res_df = pd.concat([res_df, dataset])
     
     # save updated predictions
     res_df.to_csv(res_path,index=False,sep='\t')
-    
-
-    # print results
-    # print(len(dataset), len(dataset[dataset['pred'].isna()]))
-    # dataset = dataset[~dataset['pred'].isna()]
-    # print(list(dataset)[:2])
-    
-    # perf_dict = {'task':task}
-    # # compute scores
-    # if task_type in ['PAIR','CLS']:
-    #     perf_dict['p'], perf_dict['r'], perf_dict['f1'], _ =  precision_recall_fscore_support(dataset['label'], dataset['pred'], average='macro')
-    # elif task_type == 'SPAN':
-    #     span_labels = [' '.join(list(it.values())[0]) for it in dataset['label']]
-    #     perf_dict['p'], perf_dict['r'], perf_dict['f1'] = get_all_f1(span_labels, dataset['pred'])
-    # elif task_type== 'REG':
-    #     perf_dict['p'], perf_dict['r'] = None, None
-    #     perf_dict['f1'] = dataset['pred'].astype(float).corr(dataset['label'].astype(float))
-    # perf_dict['test_size'] = len(dataset)
-    # perf_dict['invalid_answer_cnt'] = len(dataset[dataset['pred'].isna()])
-    
-    # # save updated scores
-    # perf_df.loc[len(perf_df.index)] = perf_dict
-    # perf_df.to_csv(perf_path,index=False)
-    # print(i, task, perf_dict)
-    
     
