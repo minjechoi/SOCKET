@@ -184,7 +184,7 @@ if __name__=='__main__':
             elif task_type=='SPAN':
                 scores = []
                 n_miss = 0
-                question = ppt_df[ppt_df.task==task].question.item()
+                question = ppt_df[ppt_df.task==task].question.item().split(',')[-1]
                 for text,label,pred in df2[['text','label','generated_text']].values:
                     label = ast.literal_eval(label)
                     spans = list(label.values())[0]
