@@ -184,12 +184,13 @@ if __name__=='__main__':
             elif task_type=='SPAN':
                 scores = []
                 n_miss = 0
+                question = ppt_df[ppt_df.task==task].question.item()
                 for text,label,pred in df2[['text','label','generated_text']].values:
                     label = ast.literal_eval(label)
                     spans = list(label.values())[0]
                     if type(pred)==str:
-                        # remove if entire input is included
-                        pred = pred.replace(text,'').strip()
+                        # remove cases if prediction is just copying question
+                        pred = pred.split(question)[-1]
                         pred = extract_spans(pred)
                         pred2 = [longest_common_substring(text,span) for span in pred]
                         pred2 = [x for x in pred2 if len(x)>=3]
