@@ -65,7 +65,9 @@ def longest_common_substring(S1, S2):
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data_dir", type=str, default='results/')
+    parser.add_argument("--prediction_path", type=str)
+    parser.add_argument("--save_file", type=str, default='all_scores.df.tsv')
+    parser.add_argument("--replace_missing", action='store_true', help="When set, fills in random scores for samples that the LLM was unable to generate any answer")
     args = parser.parse_args()
 
     data_dir = args.data_dir
@@ -78,7 +80,7 @@ if __name__=='__main__':
     
     out = []
     for file in files:
-        model = file.split('.')[0]
+        model = file.split('_res')[0]
         df=pd.read_csv(os.path.join(data_dir,file),sep='\t')
 
         for task in sorted(df.task.unique()):
@@ -105,13 +107,16 @@ if __name__=='__main__':
                 n_miss = cn[None]
                 
                 # fill missing answers
-                if task in ['hahackathon#humor_rating','hahackathon#offense_rating',
-                            'emobank#arousal','emobank#dominance','emobank#valence']:
-                    ceil = 5.0
-                elif task in ['empathy#distress','empathy#empathy']:
-                    ceil = 7.0
                 df2['pred'] = preds
-                df2['pred']=df2['pred'].apply(lambda x: np.random.uniform(0, ceil) if pd.isnull(x) else x)
+                if args.replace_missing:
+                    if task in ['hahackathon#humor_rating','hahackathon#offense_rating',
+                                'emobank#arousal','emobank#dominance','emobank#valence']:
+                        ceil = 5.0
+                    elif task in ['empathy#distress','empathy#empathy']:
+                        ceil = 7.0
+                    df2['pred']=df2['pred'].apply(lambda x: np.random.uniform(0, ceil) if pd.isnull(x) else x)
+                else:
+                    df2  = df2.dropna()
                 df2[['label','pred']]=df2[['label','pred']].astype(float)
                 
                 # compute performance
@@ -164,7 +169,10 @@ if __name__=='__main__':
 
                 # fill missing values with random numbers 
                 df2['pred'] = preds
-                df2['pred']=df2['pred'].apply(lambda x: np.random.randint(0, len(options)) if pd.isnull(x) else x)
+                if args.replace_missing:                
+                    df2['pred']=df2['pred'].apply(lambda x: np.random.randint(0, len(options)) if pd.isnull(x) else x)
+                else:
+                    df2 = df2.dropna()
                 df2[['label','pred']]=df2[['label','pred']].astype(float)
                 df2[['label','pred']]=df2[['label','pred']].astype(int)
                 
@@ -183,7 +191,11 @@ if __name__=='__main__':
                         pred = extract_spans(pred)
                         pred2 = [longest_common_substring(text,span) for span in pred]
                         pred2 = [x for x in pred2 if len(x)>=3]
-                        pred_indices = find_substring_indices(text, pred2)
+                        if len(pred2)>0:
+                            pred_indices = find_substring_indices(text, pred2)
+                        else:
+                            pred_indices = []
+                            n_miss += 1
                     else:
                         pred_indices = []
                         n_miss += 1
@@ -195,4 +207,4 @@ if __name__=='__main__':
     
     # save results
     df_out = pd.DataFrame(out,columns=['model','task','task_type','metric','score'])
-    df_out.to_csv('all_scores.df.tsv',sep='\t',index=False)
+    df_out.to_csv(args.save_file,sep='\t',index=False)
