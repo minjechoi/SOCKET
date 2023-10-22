@@ -308,7 +308,12 @@ class SOCKETModule(LightningModule):
             if task_type=='classification':
                 acc=accuracy_score(y_true=obj['answers'],y_pred=obj['predictions'])
                 log_dict[f'test_{task}_acc']=round(acc,3)
+                # number of classes
+                num_labels = self.dataset_info[task]['num_labels']
+                # average_type = 'binary' if num_labels==2 else 'macro'
+                # f1 = f1_score(y_true=obj['answers'], y_pred=obj['predictions'], average=average_type)
                 f1 = f1_score(y_true=obj['answers'], y_pred=obj['predictions'], average='macro')
+                # f1 = f1_score(y_true=obj['answers'], y_pred=obj['predictions'])
                 log_dict[f'test_{task}_f1'] = round(f1, 3)
             elif task_type=='span':
                 f1 = np.mean(obj['f1_scores'])
@@ -387,7 +392,7 @@ class SOCKETModule(LightningModule):
                     break
                 indices.extend(list(range(start,start + len(substring))))
                 start += len(substring)
-        return sorted(indices)
+        return sorted(set(indices))
 
     def get_span_f1(self, predictions, gold):
         """
@@ -425,7 +430,7 @@ class SOCKETModule(LightningModule):
                         x_longest = x
                 else:
                     m[x][y] = 0
-        return S1[x_longest - longest: x_longest]
+        return S1[x_longest - longest: x_longest].strip()
 
 # Classifier head for generic task
 class ClassifierHead(nn.Module):
