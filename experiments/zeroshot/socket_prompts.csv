@@ -1,0 +1,59 @@
+type,task,question,options
+PAIR,talkdown-pairs,"For the quote ""{text_a}"" and its context ""{text_b}"", is the quote condescending?","['No', 'Yes']"
+REG,hahackathon#humor_rating,"Determine the degree of humor of the given sentence: ""{text}"". The score should be ranging from 0.0 to 5.0, and can be a decimal. 0 is not humorous at all, and 5 is very humorous.",
+CLS,hahackathon#is_humor,"For the sentence: ""{text}"", is it humorous?","['No', 'Yes']"
+PAIR,humor-pairs,"The first sentence is ""{text_a}"". The second sentence is ""{text_b}"". Is the first sentence funnier than the second sentence?","['Yes', 'No']"
+CLS,sarc,"For the sentence: ""{text}"", is it sarcastic?","['Yes', 'No']"
+CLS,tweet_irony,"For the sentence: ""{text}"", is it ironic?","['No', 'Yes']"
+CLS,contextual-abuse#IdentityDirectedAbuse,"For the sentence: ""{text}"", is it identity directed abuse?","['No', 'Yes']"
+CLS,contextual-abuse#PersonDirectedAbuse,"For the sentence: ""{text}"", is it person directed abuse?","['No', 'Yes']"
+REG,hahackathon#offense_rating,"Determine the degree of offense of the given sentence: ""{text}"". The score should be ranging from 0.0 to 5.0, and can be a decimal.",
+CLS,hasbiasedimplication,"For the sentence: ""{text}"", does it imply some biases?","['No', 'Yes']"
+CLS,hateoffensive,"For the sentence: ""{text}"", is it hate or offensive?","['Hate', 'Offensive', 'Neither']"
+CLS,implicit-hate#explicit_hate,"For the sentence: ""{text}"", is it explicit hate?","['No', 'Yes']"
+CLS,implicit-hate#implicit_hate,"For the sentence: ""{text}"", is it implicitly hateful?","['No', 'Yes']"
+CLS,implicit-hate#incitement_hate,"For the sentence: ""{text}"", is it a hateful incitement to act?","['No', 'Yes']"
+CLS,implicit-hate#inferiority_hate,"For the sentence: ""{text}"", is it inferiority hate?","['No', 'Yes']"
+CLS,implicit-hate#stereotypical_hate,"For the sentence: ""{text}"", is it a hateful message involving stereotypes?","['No', 'Yes']"
+CLS,implicit-hate#threatening_hate,"For the sentence: ""{text}"", is it hateful in a threatening way?","['No', 'Yes']"
+CLS,implicit-hate#white_grievance_hate,"For the sentence: ""{text}"", is it white grievance hate?","['No', 'Yes']"
+CLS,intentyn,"For the sentence: ""{text}"", is it intentional?","['No', 'Yes']"
+CLS,jigsaw#identity_hate,"For the sentence: ""{text}"", is it identity hate?","['No', 'Yes']"
+CLS,jigsaw#insult,"For the sentence: ""{text}"", is it an insult?","['No', 'Yes']"
+CLS,jigsaw#obscene,"For the sentence: ""{text}"", is it obscene?","['No', 'Yes']"
+CLS,jigsaw#severe_toxic,"For the sentence: ""{text}"", is it severely toxic?","['No', 'Yes']"
+CLS,jigsaw#threat,"For the sentence: ""{text}"", is it a threat?","['No', 'Yes']"
+CLS,jigsaw#toxic,"For the sentence: ""{text}"", is it toxic?","['No', 'Yes']"
+CLS,offensiveyn,"For the sentence: ""{text}"", is it offensive?","['No', 'Yes']"
+CLS,sexyn,"For the sentence: ""{text}"", is it sexist?","['No', 'Yes']"
+SPAN,toxic-span,"In the sentence: ""{text}"", which part of it can be identified as toxic?",
+CLS,tweet_offensive,"For the sentence: ""{text}"", is it offensive?","['No', 'Yes']"
+CLS,crowdflower,"For the sentence: ""{text}"", what is its emotion?","['empty', 'sadness', 'enthusiasm', 'neutral', 'worry', 'love', 'fun', 'hate', 'happiness', 'relief', 'boredom', 'surprise', 'anger']"
+CLS,dailydialog,"For the given conversation, ""{text}"", what is its emotion?","['no emotion', 'anger', 'disgust', 'fear', 'happiness', 'sadness', 'surprise']"
+REG,emobank#arousal,"Given the VAD model of emotion, determine the degree of arousal of the given sentence: ""{text}"". The score should be ranging from 0.0 to 5.0, and can be a decimal.",
+REG,emobank#dominance,"Given the VAD model of emotion, determine the degree of dominance of the given sentence: ""{text}"". The score should be ranging from 0.0 to 5.0, and can be a decimal.",
+REG,emobank#valence,"Given the VAD model of emotion, determine the degree of valence of the given sentence: ""{text}"". The score should be ranging from 0.0 to 5.0, and can be a decimal.",
+SPAN,emotion-span,"In the sentence: ""{text}"", which part of it expresses strong emotion?",
+REG,empathy#distress,"Determine the degree of distress of the given sentence: ""{text}"". The score should be ranging from 0.0 to 7.0, and can be a decimal.",
+CLS,empathy#distress_bin,"For the sentence: ""{text}"", is it showing distress?","['No', 'Yes']"
+PAIR,same-side-pairs,"For the sentences: ""{text_a}"" and ""{text_b}"", are they on the same side?","['No', 'Yes']"
+CLS,sentitreebank,"For the sentence: ""{text}"", is it positive?","['Yes', 'No']"
+CLS,tweet_emoji,"For the sentence: ""{text}"", what is the emoji that can be added to it?","['❤', '😍', '😂', '💕', '🔥', '😊', '😎', '✨', '💙', '😘', '📷', '🇺🇸', '☀', '💜', '😉', '💯', '😁', '🎄', '📸', '😜']"
+CLS,tweet_emotion,"For the sentence: ""{text}"", what is its emotion?","['anger', 'joy', 'optimism', 'sadness']"
+CLS,tweet_sentiment,"For the sentence: ""{text}"", what is its sentiment?","['negative', 'neutral', 'positive']"
+CLS,complaints,"For the sentence: ""{text}"", is it a complaint?","['No', 'Yes']"
+REG,empathy#empathy,"Determine the degree of empathy of the given sentence: ""{text}"". The score should be ranging from 0.0 to 7.0, and can be a decimal.",
+CLS,empathy#empathy_bin,"For the sentence: ""{text}"", is it expressing empathy?","['No', 'Yes']"
+CLS,hayati_politeness,"For the sentence: ""{text}"", is it polite?","['No', 'Yes']"
+CLS,questionintimacy,"For the sentence: ""{text}"", how intimate do you think it is?","['Very intimate', 'Intimate', 'Somewhat intimate', 'Not very intimate', 'Not intimate', 'Not intimate at all']"
+CLS,stanfordpoliteness,"For the sentence: ""{text}"", is it polite?","['Yes', 'No']"
+CLS,bragging#brag_achievement,"For the sentence: ""{text}"", is it bragging about an achievement?","['No', 'Yes']"
+CLS,bragging#brag_action,"For the sentence: ""{text}"", is it bragging about an action?","['No', 'Yes']"
+CLS,bragging#brag_possession,"For the sentence: ""{text}"", is it bragging about a possession?","['No', 'Yes']"
+CLS,bragging#brag_trait,"For the sentence: ""{text}"", is it bragging about a trait?","['No', 'Yes']"
+CLS,hypo-l,"For the sentence: ""{text}"", is it a hyperbole?","['No', 'Yes']"
+PAIR,neutralizing-bias-pairs,"For the sentences: ""{text_a}"" and ""{text_b}"", which one is biased?","['the first sentence is biased', 'the second sentence is biased']"
+SPAN,propaganda-span,"In the sentence: ""{text}"", which part of it can be identified as the propaganda?",
+CLS,rumor#rumor_bool,"For the sentence: ""{text}"", is it a rumor?","['No', 'Yes']"
+CLS,two-to-lie#receiver_truth,"For the sentence :""{text}"", will it be perceived as a lie by the receiver?","['Yes', 'No']"
+CLS,two-to-lie#sender_truth,"For the sentence :""{text}"", is the sender intending to tell a lie?","['Yes', 'No']"
