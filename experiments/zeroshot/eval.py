@@ -93,6 +93,8 @@ if __name__=='__main__':
                 # regression
                 for line in df2.generated_text:
                     if type(line)==str:
+                        if 'llama2' in file.lower():
+                            line = line.split('Response:')[-1].strip()
                         scores = re.findall(r'[0-9](?:\.[0-9])?',line)
                         if len(scores)==1:
                             score = float(scores[0])
@@ -131,12 +133,24 @@ if __name__=='__main__':
                 for line in df2.generated_text:
                     if task=='tweet_emoji':
                         if type(line)==str:
+                            if 'llama2' in file.lower():
+                                line=line.split('Response:')[-1].strip()
                             emojis= list(set([c for c in line if c in emoji.UNICODE_EMOJI['en']]))
                             if len(emojis)==1:
                                 pred = emojis[0]
                                 if pred in options:
                                     pred = options.index(pred)
                                     preds.append(pred)
+                                elif pred in ['true','false']:
+                                    if ('yes' in options) and ('no' in options):
+                                        if pred=='true':
+                                            preds.append(options.index('yes'))
+                                        elif pred=='false':
+                                            preds.append(options.index('no'))
+                                        else:
+                                            preds.append(None)
+                                    else:
+                                        preds.append(None)
                                 else:
                                     preds.append(None)
                             else:
@@ -146,6 +160,8 @@ if __name__=='__main__':
                     else:
                         # for other tasks
                         if type(line)==str:
+                            if 'llama2' in file.lower():
+                                line=line.split('Response: ')[-1].strip()
                             line = line.lower().strip()
                             flag = False
                             pred = None
@@ -189,6 +205,8 @@ if __name__=='__main__':
                     label = ast.literal_eval(label)
                     spans = list(label.values())[0]
                     if type(pred)==str:
+                        if 'llama2' in file.lower():
+                            pred=pred.split('Response: ')[-1].strip()
                         # remove cases if prediction is just copying question
                         pred = pred.split(question)[-1]
                         pred = extract_spans(pred)
