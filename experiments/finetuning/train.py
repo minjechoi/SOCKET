@@ -35,13 +35,15 @@ def train(args):
       **dict_args)
 
     checkpoint_callback = ModelCheckpoint(
-        save_top_k=1, monitor="val_total_score", mode="max",
+        save_top_k=1, 
+        monitor="val_total_score", mode="max",
         dirpath=args.default_root_dir,
         filename="checkpoint-{epoch}-{val_total_score:.3f}-{val_total_loss:.3f}",
         every_n_epochs=1, save_weights_only=True)
 
     early_stop_callback = EarlyStopping(
-        monitor='val_total_score', mode='max', min_delta=0.0, patience=1, verbose=False,
+        monitor="val_total_score", mode="max",
+        min_delta=0.0, patience=5, verbose=False,
     )
 
     model = SOCKETModule(
@@ -125,70 +127,3 @@ if __name__ == '__main__':
               args.tasks = task
               args.default_root_dir = join(default_root_dir, f'seed-{seed}', task)
               train(args)
-                
-
-"""
-# taco
-CUDA_VISIBLE_DEVICES=1 python train.py --train_mode all \
-  --default_root_dir /shared/3/projects/socket/experiments/camera-ready/ex4-deberta-all \
-  --model_name_or_path microsoft/deberta-v3-base \
-  --accelerator gpu --devices 1 --max_epochs 5 --precision 16 \
-  --warmup_steps 0.06 --seed=1 --n_seeds=1
-
-CUDA_VISIBLE_DEVICES=2 python train.py --train_mode single --tasks=sarc,jigsaw#identity_hate,jigsaw#insult,jigsaw#obscene \
-  --default_root_dir /shared/3/projects/socket/experiments/camera-ready/ex6-deberta-single \
-  --model_name_or_path microsoft/deberta-v3-base \
-  --accelerator gpu --devices 1 --max_epochs 10 --precision 16 --seed=3 --n_seeds=1 \
-  --warmup_steps 0.06 --train_batch_size 16
-
-  
-# sushi
-CUDA_VISIBLE_DEVICES=0 python train.py --train_mode categorywise --tasks=offensive \
-  --default_root_dir /shared/3/projects/socket/experiments/camera-ready/ex5-deberta-categorywise \
-  --model_name_or_path microsoft/deberta-v3-base \
-  --accelerator gpu --devices 1 --max_epochs 5 --precision 16 --seed=1 --n_seeds=1 \
-  --warmup_steps 0.06 --train_batch_size 16
-
-CUDA_VISIBLE_DEVICES=1 python train.py --train_mode categorywise --tasks=sentiment_emotion \
-  --default_root_dir /shared/3/projects/socket/experiments/camera-ready/ex5-deberta-categorywise \
-  --model_name_or_path microsoft/deberta-v3-base \
-  --accelerator gpu --devices 1 --max_epochs 5 --precision 16 --seed=1 --n_seeds=1 \
-  --warmup_steps 0.06 --train_batch_size 16
-
-CUDA_VISIBLE_DEVICES=2 python train.py --train_mode single --tasks=sarc,jigsaw#identity_hate,jigsaw#insult,jigsaw#obscene \
-  --default_root_dir /shared/3/projects/socket/experiments/camera-ready/ex6-deberta-single \
-  --model_name_or_path microsoft/deberta-v3-base \
-  --accelerator gpu --devices 1 --max_epochs 10 --precision 16 --seed=2 --n_seeds=1 \
-  --warmup_steps 0.06 --train_batch_size 16
-
-CUDA_VISIBLE_DEVICES=3 python train.py --train_mode single \
-  --default_root_dir /shared/3/projects/socket/experiments/camera-ready/ex6-deberta-single \
-  --model_name_or_path microsoft/deberta-v3-base \
-  --accelerator gpu --devices 1 --max_epochs 10 --precision 16 --seed=2 --n_seeds=1 \
-  --warmup_steps 0.06 --train_batch_size 16 --exclude_tasks=sarc,jigsaw#identity_hate,jigsaw#insult,jigsaw#obscene
-
-CUDA_VISIBLE_DEVICES=4 python train.py --train_mode single \
-  --default_root_dir /shared/3/projects/socket/experiments/camera-ready/ex6-deberta-single \
-  --model_name_or_path microsoft/deberta-v3-base \
-  --accelerator gpu --devices 1 --max_epochs 10 --precision 16 --seed=3 --n_seeds=1 \
-  --warmup_steps 0.06 --train_batch_size 16 --exclude_tasks=sarc,jigsaw#identity_hate,jigsaw#insult,jigsaw#obscene
-
-CUDA_VISIBLE_DEVICES=5 python train.py --train_mode single \
-  --default_root_dir /shared/3/projects/socket/experiments/camera-ready/ex6-deberta-single \
-  --model_name_or_path microsoft/deberta-v3-base \
-  --accelerator gpu --devices 1 --max_epochs 10 --precision 16 --seed=1 --n_seeds=1 \
-  --warmup_steps 0.06 --train_batch_size 16 --tasks_exclude=sarc,jigsaw#identity_hate,jigsaw#insult,jigsaw#obscene
-  
-CUDA_VISIBLE_DEVICES=6 python train.py --train_mode all \
-  --default_root_dir /shared/3/projects/socket/experiments/camera-ready/ex4-deberta-all \
-  --model_name_or_path microsoft/deberta-v3-base \
-  --accelerator gpu --devices 1 --max_epochs 5 --precision 16 \
-  --warmup_steps 0.06 --seed=2 --n_seeds=1
-
-CUDA_VISIBLE_DEVICES=7 python train.py --train_mode all \
-  --default_root_dir /shared/3/projects/socket/experiments/camera-ready/ex4-deberta-all \
-  --model_name_or_path microsoft/deberta-v3-base \
-  --accelerator gpu --devices 1 --max_epochs 5 --precision 16 \
-  --warmup_steps 0.06 --seed=3 --n_seeds=1
-
-"""
