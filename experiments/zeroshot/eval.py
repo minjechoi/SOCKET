@@ -4,6 +4,7 @@ import ast
 import string
 from collections import Counter
 import argparse
+from random import sample
 
 import emoji
 import numpy as np
@@ -67,7 +68,7 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--prediction_path", type=str)
     parser.add_argument("--save_file", type=str, default='all_scores.df.tsv')
-    parser.add_argument("--replace_missing", action='store_true', help="When set, fills in random scores for samples that the LLM was unable to generate any answer")
+    parser.add_argument("--penalize_missing", action='store_true', help="When set, considers all missing predictions as wrong for CLS tasks")
     args = parser.parse_args()
 
     data_dir = args.prediction_path
@@ -110,13 +111,8 @@ if __name__=='__main__':
                 
                 # fill missing answers
                 df2['pred'] = preds
-                if args.replace_missing:
-                    if task in ['hahackathon#humor_rating','hahackathon#offense_rating',
-                                'emobank#arousal','emobank#dominance','emobank#valence']:
-                        ceil = 5.0
-                    elif task in ['empathy#distress','empathy#empathy']:
-                        ceil = 7.0
-                    df2['pred']=df2['pred'].apply(lambda x: np.random.uniform(0, ceil) if pd.isnull(x) else x)
+                if args.penalize_missing:
+                    df2['pred'] = df2['pred'].apply(lambda x:0 if pd.isnull(x) else x)
                 else:
                     df2  = df2.dropna()
                 df2[['label','pred']]=df2[['label','pred']].astype(float)
@@ -126,9 +122,10 @@ if __name__=='__main__':
                 out.append((model,task,task_type,'hit_rate',1-n_miss/len(preds)))
                 out.append((model,task,task_type,'corr_original',corr))
                 out.append((model,task,task_type,'corr_score',(corr+1)/2))
-                    
+
             elif task_type in ['PAIR','CLS']:
                 # classification
+                df2['label']=df2['label'].astype(float).astype(int)
                 options = ast.literal_eval(info[-1].lower())
                 for line in df2.generated_text:
                     if task=='tweet_emoji':
@@ -141,16 +138,6 @@ if __name__=='__main__':
                                 if pred in options:
                                     pred = options.index(pred)
                                     preds.append(pred)
-                                elif pred in ['true','false']:
-                                    if ('yes' in options) and ('no' in options):
-                                        if pred=='true':
-                                            preds.append(options.index('yes'))
-                                        elif pred=='false':
-                                            preds.append(options.index('no'))
-                                        else:
-                                            preds.append(None)
-                                    else:
-                                        preds.append(None)
                                 else:
                                     preds.append(None)
                             else:
@@ -161,7 +148,7 @@ if __name__=='__main__':
                         # for other tasks
                         if type(line)==str:
                             if 'llama2' in file.lower():
-                                line=line.split('Response: ')[-1].strip()
+                                line=line.split('Response:')[-1].strip()
                             line = line.lower().strip()
                             flag = False
                             pred = None
@@ -172,6 +159,15 @@ if __name__=='__main__':
                                     flag=True
                                     pred = idx
                                     break
+                                elif (opt=='yes') and (line.startswith('true')):
+                                    flag=True
+                                    pred = idx
+                                    break
+                                elif (opt=='no') and (line.startswith('false')):
+                                    flag=True
+                                    pred = idx
+                                    break
+
                             if flag==True:
                                 preds.append(idx)
                             else:
@@ -183,14 +179,25 @@ if __name__=='__main__':
                 cn = Counter(preds)
                 n_miss = cn[None]
 
-                # fill missing values with random numbers 
+                # fill missing values with incorrect numbers 
                 df2['pred'] = preds
-                if args.replace_missing:                
-                    df2['pred']=df2['pred'].apply(lambda x: np.random.randint(0, len(options)) if pd.isnull(x) else x)
+                if args.penalize_missing:
+                    option_ints = list(range(len(options)))
+                    # randomly sample an incorrect answer
+                    preds2 = []
+                    labels = df2['label'].tolist()
+                    for label,pred in zip(labels,preds):
+                        label=int(float(label))
+                        if pred in option_ints:
+                            preds2.append(pred)
+                        else:
+                            pred = sample([x for x in option_ints if x!=label],1)[0]
+                            preds2.append(pred)
+                    df2['pred']=preds2
                 else:
                     df2 = df2.dropna()
-                df2[['label','pred']]=df2[['label','pred']].astype(float)
-                df2[['label','pred']]=df2[['label','pred']].astype(int)
+                    df2[['label','pred']]=df2[['label','pred']].astype(float)
+                    df2[['label','pred']]=df2[['label','pred']].astype(int)
                 
                 # get scores
                 precision, recall, f1, _ =  precision_recall_fscore_support(df2['label'], df2['pred'], average='macro')
