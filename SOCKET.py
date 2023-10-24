@@ -38,8 +38,7 @@ _HOMEPAGE = "TBD"
 _LICENSE = ""
 
 #set up url or the file dir here
-URL = "SOCKET_DATA/"
-URL = "https://huggingface.co/datasets/Blablablab/SOCKET/tree/main/SOCKET_DATA/"
+URL = "https://huggingface.co/datasets/Blablablab/SOCKET/blob/main/SOCKET_DATA/"
 
 TASK_DICT = {
     'humor_sarcasm': [
