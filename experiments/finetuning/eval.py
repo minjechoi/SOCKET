@@ -17,14 +17,8 @@ from SOCKET import TASK_DICT
 def eval(args):
     dict_args = vars(args)
     print(os.getpid())
-    # the arguments used for creating the dataset are different from the ones used for loading the model
- 
-    # list_of_tasks = []
-    # for category, V in TASK_DICT.items():
-    #     list_of_tasks.extend(V)
-    # all_tasks=','.join(list_of_tasks)
+
     tasks=args.tasks.split(',')
-    # dict_args['tasks']=all_tasks
     dm = SOCKETDataModule(
         splits=['test'],
         **dict_args) # prediction for all tasks
@@ -39,7 +33,6 @@ def eval(args):
         os.makedirs(args.save_dir)
     with open(join(args.save_dir, args.save_file_name), 'w') as f:
         json.dump(result,f)
-        # f.write(json.dumps(result))
     return
 
 
@@ -99,22 +92,3 @@ if __name__ == '__main__':
             args.ckpt_file_path = join(args.ckpt_dir,task,model_file)
             args.save_file_name = f'{task}.json'
             eval(args)
-        
-
-"""
-# sushi
-CUDA_VISIBLE_DEVICES=1 python eval.py --eval_mode single \
-  --ckpt_dir /shared/3/projects/socket/experiments/camera-ready/ex3-deberta-single/seed-1 \
-  --save_dir /shared/3/projects/socket/experiments/camera-ready/compare-socket-sockette/sockette-single \
-  --model_name_or_path microsoft/deberta-v3-base \
-  --accelerator gpu --devices 1 \
-  --eval_batch_size 16 --use_sockette
-
-
-CUDA_VISIBLE_DEVICES=2 python eval.py --eval_mode single \
-  --ckpt_dir /shared/3/projects/socket/experiments/camera-ready/ex3-deberta-single/seed-1 \
-  --save_dir /shared/3/projects/socket/experiments/camera-ready/compare-socket-sockette/socket-single \
-  --model_name_or_path microsoft/deberta-v3-base \
-  --accelerator gpu --devices 1 \
-  --eval_batch_size 16
-"""
