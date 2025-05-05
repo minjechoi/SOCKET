@@ -1,0 +1,7 @@
+transformers
+scikit-learn
+pytorch-lightning
+datasets
+langchain
+langchain_community
+sentencepiece

@@ -4,8 +4,8 @@
 # Ignore all files in any 'lightning_logs' folders
 /*/lightning_logs/*
 
-# Ignore all files in any '__pycache__' folders
-/*/__pycache__/*
-
 # Ignore all files in any '.cache' folders
 /*/.cache/*
+
+local_socket/
+__pycache__/
