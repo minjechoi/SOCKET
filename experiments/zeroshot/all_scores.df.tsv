@@ -1,0 +1,13 @@
+model	task	task_type	metric	score
+ibm-granite-granite-3.3-8b-base	humor-pairs	PAIR	hit_rate	1.0
+ibm-granite-granite-3.3-8b-base	humor-pairs	PAIR	f1	0.42616701956805814
+ibm-granite-granite-3.3-8b-base	sarc	CLS	hit_rate	1.0
+ibm-granite-granite-3.3-8b-base	sarc	CLS	f1	0.40377449212645755
+ibm-granite-granite-3.3-8b-base	tweet_irony	CLS	hit_rate	1.0
+ibm-granite-granite-3.3-8b-base	tweet_irony	CLS	f1	0.43429920095544117
+tiiuae-falcon-7b	humor-pairs	PAIR	hit_rate	0.999
+tiiuae-falcon-7b	humor-pairs	PAIR	f1	0.41325859379404967
+tiiuae-falcon-7b	sarc	CLS	hit_rate	1.0
+tiiuae-falcon-7b	sarc	CLS	f1	0.4495389889032064
+tiiuae-falcon-7b	tweet_irony	CLS	hit_rate	1.0
+tiiuae-falcon-7b	tweet_irony	CLS	f1	0.41785046647711954
