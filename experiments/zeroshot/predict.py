@@ -1,45 +1,23 @@
-import os
-import sys
 import argparse
-import json
+import collections
 import math
+import os
 import re
 import string
-import collections
+import sys
 from getpass import getpass
 
+import pandas as pd
 import torch
+from datasets import load_dataset
+from langchain.chat_models import ChatOpenAI
 from langchain.llms import OpenAI
+from tqdm import tqdm
 from transformers import (
     AutoConfig,
+    AutoTokenizer,
     pipeline
 )
-from langchain.chat_models import ChatOpenAI
-from datasets import load_dataset
-from sklearn.metrics import precision_recall_fscore_support
-import pandas as pd
-
-from langchain.agents import load_tools
-from langchain.agents import initialize_agent
-from langchain.agents import AgentType
-from langchain.llms import OpenAI
-from langchain.llms import HuggingFacePipeline
-from transformers.pipelines.pt_utils import KeyDataset
-from langchain.prompts import PromptTemplate
-from langchain.chains import LLMChain
-from langchain.chat_models import ChatOpenAI
-from langchain.evaluation.qa import QAEvalChain
-from tqdm import tqdm
-from sklearn.metrics import precision_recall_fscore_support
-
-from langchain.chat_models import ChatOpenAI
-from langchain.prompts.chat import (
-    ChatPromptTemplate,
-    SystemMessagePromptTemplate,
-    AIMessagePromptTemplate,
-    HumanMessagePromptTemplate,
-)
-from langchain.schema import AIMessage, HumanMessage, SystemMessage
 
 print('PID: ',os.getpid())
 
@@ -58,8 +36,6 @@ parser.add_argument("--use_cuda", action="store_true")
 parser.add_argument("--use_sockette", action="store_true")
 parser.add_argument("--unit_test", action="store_true")
 parser.add_argument("--debug", action="store_true")
-
-
 
 # functions for normalizing texts
 def normalize_answer(s):
@@ -115,18 +91,6 @@ def data_iterator(data, batch_size = 64):
         x = data[idx *batch_size:(idx+1) * batch_size]
         yield x
 
-# def get_max_seq_len(model_id):
-#     model_id = model_id.lower()
-#     if 'opt-' in model_id:
-#         return 2048
-#     elif 'bloom' in model_id:
-#         return 2048
-#     elif 'gpt' in model_id:
-#         return 2048
-    
-#     else:
-#         return 2048
-
 def truncate(sen, tokenizer, max_length=512):
     en_sen = tokenizer.encode(sen)
     sen = tokenizer.decode(en_sen[:max_length])
@@ -180,14 +144,8 @@ if model_type == 'huggingface':
         pipe_type = "text-generation"
     print(pipe_type)
     
-    if 'llama' in model_id:
-        from transformers import LlamaTokenizer, LlamaConfig
-        tokenizer = LlamaTokenizer.from_pretrained(model_id)
-        config = LlamaConfig.from_pretrained(model_id)
-    else:
-        from transformers import AutoTokenizer, AutoConfig
-        tokenizer = AutoTokenizer.from_pretrained(model_id)
-        config = AutoConfig.from_pretrained(model_id)
+    tokenizer = AutoTokenizer.from_pretrained(model_id, legacy = False)
+    config = AutoConfig.from_pretrained(model_id)
     hf_pipe = pipeline(pipe_type, model=model_id, tokenizer=tokenizer, device=device, torch_dtype=dtype)
     llm = hf_pipe#
 elif model_type.startswith('openai'):
