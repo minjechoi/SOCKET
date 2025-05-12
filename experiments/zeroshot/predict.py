@@ -5,11 +5,11 @@ import os
 import re
 import string
 import sys
-from getpass import getpass
 
 import pandas as pd
 import torch
-from datasets import load_dataset
+from datasets import load_dataset, Dataset
+from getpass import getpass
 from langchain.chat_models import ChatOpenAI
 from langchain.llms import OpenAI
 from tqdm import tqdm
@@ -181,8 +181,11 @@ for i,task_info in tqdm(tasks_df.iterrows()):
     task, task_type = task_info['task'],task_info['type']
     print(task_info)
     
-    # load dataset for task
-    dataset = load_dataset(args.data_name_or_path, task, data_split)[data_split]
+    if '#' in task:
+        dataset_url = f'https://huggingface.co/datasets/Blablablab/SOCKET/resolve/main/SOCKET_DATA/{task}/train_text.txt'
+        dataset = Dataset.from_text(dataset_url)
+    else:
+        dataset = load_dataset(args.data_name_or_path, task, data_split)[data_split]
     
     if task_type == 'PAIR' or task_type == 'CLS':
         ppt_template = "%s\nOptions:\n%s\nPlease only answer with the options. "%(task_info['question'], '\n'.join(eval(task_info['options'])))
