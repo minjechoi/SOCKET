@@ -1,0 +1,1 @@
+python predict.py --batch_size 32 --model_name_or_path ibm-granite/granite-3.3-2b-base --use_sockette --result_path predictions_sockette --use_cuda --tasks humor_rating,humor-pairs,sarc,tweet_irony,is_humor
